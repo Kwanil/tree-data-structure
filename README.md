@@ -6,13 +6,13 @@
 
 Java로 일반적인 계층적 구조인 Tree 자료구조를 작성하였다.
 
-Tree생성자(TreeGenerator)를 통해 데이터목록`List<Data>`을 계층적인 모델로 변경이 가능하게 구현을 하였으며, 데이터베이스에 계층적인 구조를 관리하는 일반적인 그래프 알고리즘 2개를 지원한다. 1. [Adjancency List Model](https://en.wikipedia.org/wiki/Adjacency_list) 2. [Nested Set Model](https://en.wikipedia.org/wiki/Nested_set_model)
 
-####1.Adjacency list Model 예시 -key와 parentKey 조합으로 구성된다.
+
+#### Adjacency list Model 구조를 TreeNode로 변경가능하도록한다.
 
 ```
 @Getter
-class Category implements AdjacentNode<Integer> {
+class Category {
 	private int parentKey;
 	private int key;
 	private String name;
@@ -37,64 +37,14 @@ public List<Category> selectCategories(){
 	);
 }
 
-TreeGenerator generator = new RecursiveTreeGenerator();
 List<Category> categories = selectCategories();
-Category root = categories.get(0);
-TreeNode<Category> treeNode = generator.create(categories, root);
+Collector<Category,?,TreeNode<Category>> treeNode = TreeNodeCollector<Category,Integer>.treeNode().
+id(Category::getId)
+.parentId(Category::getParentId)
+.root(i->i.parentId==0)
+.toTree();
 
-<결과>
-> root
->> sub1
->>> sub1-1
->>> sub1-2
->> sub2
->>> sub2-1
->> sub3
-
-assertThat(treeNode.get().getName(), is("root"));
-
-assertThat(treeNode.getChildAt(0).getName(), is("sub1"));
-assertThat(treeNode.getChildAt(1).getName(), is("sub2"));
-assertThat(treeNode.getChildAt(2).getName(), is("sub3"));
-
-assertThat(treeNode.getSubTreeAt(0).getChildAt(0).getName(), is("sub1-1"));
-assertThat(treeNode.getSubTreeAt(0).getChildAt(1).getName(), is("sub1-2"));
-assertThat(treeNode.getSubTreeAt(1).getChildAt(0).getName(), is("sub2-1"));
-```
-
-####2.Nested Set Model 예시 -left key와 right key 조합으로 구성된다.
-
-```
-@Getter
-class Category implements NestedSetNode {
-	private long left;
-	private long right;
-	private String name;
-
-	public Category(long left, long right, String name) {
-		this.left = left;
-		this.right = right;
-		this.name = name;
-	}
-}
-
-// DB List
-public List<Category> selectCategories(){
-  return Arrays.asList(
-    new Category(0, 13, "root"),
-    new Category(1, 6, "sub1"),
-    new Category(2, 3, "sub1-1"),
-    new Category(4, 5, "sub1-2"),
-    new Category(7, 10, "sub2"),
-    new Category(8, 9, "sub2-1"),
-    new Category(11, 12, "sub3")
-	);
-}
-
-TreeGenerator generator = new RecursiveTreeGenerator();
-List<Category> categories = selectCategories();
-Category root = categories.get(0);
-TreeNode<Category> treeNode = generator.create(categories, root);
+TreeNode<Category> root = categories.stream().collect(treeNode);
 
 <결과>
 > root

@@ -11,9 +11,10 @@ import java.util.NoSuchElementException;
 final class TreeIterables {
 
 	private TreeIterables() {
+		throw new UnsupportedOperationException("initialize error");
 	}
 	
-	static <T> Iterable<TreeNode<T>> toParent(TreeNode<T> treeNode) {
+	final static <T> Iterable<TreeNode<T>> toParent(TreeNode<T> treeNode) {
 		return () -> new Iterator<TreeNode<T>>() {
 			TreeNode<T> node = treeNode;
 
@@ -29,14 +30,13 @@ final class TreeIterables {
 				}
 				
 				TreeNode<T> next = node;
-				
-				node = next.getParent();
+				node = next.parent();
 				return next;
 			}
 		};
 	}
 	
-	static <T> Iterable<TreeNode<T>> breadthFirst(TreeNode<T> treeNode) {
+	final static <T> Iterable<TreeNode<T>> breadthFirst(TreeNode<T> treeNode) {
 		return () -> new Iterator<TreeNode<T>>() {
 			Deque<TreeNode<T>> queue = new ArrayDeque<>(Arrays.asList(treeNode));
 			
@@ -51,13 +51,13 @@ final class TreeIterables {
 					throw new NoSuchElementException();
 				}
 				TreeNode<T> next = queue.removeFirst();
-				next.getSubTrees().forEach(queue::addLast);
+				next.children().forEach(queue::addLast);
 				return next;
 			}
 		};
 	}
 	
-	static <T> Iterable<TreeNode<T>> depthFirst(TreeNode<T> treeNode){
+	final static <T> Iterable<TreeNode<T>> depthFirst(TreeNode<T> treeNode){
 		return () -> new Iterator<TreeNode<T>>() {
 			Deque<TreeNode<T>> queue = new ArrayDeque<>(Arrays.asList(treeNode));
 			
@@ -69,8 +69,8 @@ final class TreeIterables {
 			@Override
 			public TreeNode<T> next() {
 				TreeNode<T> next = queue.removeLast();
-				List<TreeNode<T>> subTrees = next.getSubTrees();
-				ListIterator<TreeNode<T>> iterator = subTrees.listIterator(subTrees.size());
+				List<TreeNode<T>> children = next.children();
+				ListIterator<TreeNode<T>> iterator = children.listIterator(children.size());
 				while (iterator.hasPrevious()) {
 					queue.addLast(iterator.previous());
 				}
