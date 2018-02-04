@@ -16,7 +16,7 @@ public final class TreeCollectors {
     }
 
     public static <T,PK> TreeCollectorBuilder.IdFunction<T,PK> tree() {
-        return id->parentId->childAppender->root->new TreeCollectorBuilder(id,parentId,childAppender,root);
+        return id->parentId->root->childAppender->new TreeCollectorBuilder(id,parentId,root,childAppender);
     }
 
     public static <T,PK> TreeNodeCollectorBuilder.IdFunction<T,PK> treeNode() {
@@ -108,16 +108,16 @@ public final class TreeCollectors {
         private TreeCollectorBuilder(
                 Function<? super T, ? extends PK> id,
                 Function<? super T, ? extends PK> parentId,
-                BiConsumer<? super T, List<? super T>> childAppender,
-                Predicate<? super T> rootPredicate) {
+                Predicate<? super T> rootPredicate,
+                BiConsumer<? super T, List<? super T>> childAppender) {
             this.rootPredicate = Objects.requireNonNull(rootPredicate);
             this.id = Objects.requireNonNull(id);
-            this.parentId = Objects.requireNonNull(parentId);
             this.childAppender = Objects.requireNonNull(childAppender);
+            this.parentId = Objects.requireNonNull(parentId);
         }
 
         public interface RootPredicate<T,PK> {
-            TreeCollectorBuilder<T,PK> root(Predicate<? super T> rootPredicate);
+            ChildrenAppender<T,PK> root(Predicate<? super T> rootPredicate);
         }
 
         public interface IdFunction<T,PK> {
@@ -125,11 +125,11 @@ public final class TreeCollectors {
         }
 
         public interface ParentIdFunction<T,PK> {
-            ChildrenAppender<T,PK> parentId(Function<? super T,? extends PK> parentId);
+            RootPredicate<T,PK> parentId(Function<? super T,? extends PK> parentId);
         }
 
         public interface ChildrenAppender<T,PK> {
-            RootPredicate<T,PK> childAppend(BiConsumer<? super T, List<T>> childAppender);
+            TreeCollectorBuilder<T,PK> childrenAppend(BiConsumer<? super T, List<T>> childAppender);
         }
 
         public Collector<T,?,T> toTree() {

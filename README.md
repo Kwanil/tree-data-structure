@@ -1,4 +1,4 @@
-##Tree
+#Tree
 
 \-`jdk8`
 
@@ -6,9 +6,15 @@
 
 Java로 일반적인 계층적 구조인 Tree 자료구조를 작성하였다.
 
+- Java8의 stream을 통한 TreeNode의 접근등을 할수있도록 하였다. 
+- TreeNode.stream에서 검색 방식은 3가지로 너비우선, 깊이우선, 부모방향이다.
+- 트리노드로 구성되지 않은 List구조를 TreeNode로 간편하게 변경하는 Collector를 제공한다.
+(`TreeNode<Category> root = categories.stream().collect(toTreeNode());`)
+- 트리노드객체로 구성하지 않더라도, Pojo객체 내부에 mutable한 children setter가 있다면, 객체자체를 Tree로 구성할수 있다
+(`Category root = categories.stream().collect(toTree());`)
 
 
-#### Adjacency list Model 구조를 TreeNode로 변경가능하도록한다.
+#### Adjacency list Model 구조를 TreeNode로 간편 변경가능하도록한다.
 
 ```
 @Getter
@@ -38,13 +44,17 @@ public List<Category> selectCategories(){
 }
 
 List<Category> categories = selectCategories();
-Collector<Category,?,TreeNode<Category>> treeNode = TreeNodeCollector<Category,Integer>.treeNode().
-id(Category::getId)
-.parentId(Category::getParentId)
-.root(i->i.parentId==0)
-.toTree();
 
-TreeNode<Category> root = categories.stream().collect(treeNode);
+
+TreeNode<Category> root = categories.stream().collect(toTreeNode());
+
+public Collector<Category,?,TreeNode<Category>> toTreeNode() {
+return TreeNodeCollector<Category,Integer>.treeNode()
+                                .id(Category::getId)    //ID는??
+                                .parentId(Category::getParentId) //Parent ID
+                                .root(i->i.parentId==0) //Root는??
+                                .toTree();
+}
 
 <결과>
 > root
@@ -69,7 +79,7 @@ assertThat(treeNode.getSubTreeAt(1).getChildAt(0).getName(), is("sub2-1"));
 ### TreeNode를 탐색하는 Utility제공
 
 -	어떠한 TreeNode 한 지점(A)을 탐색하는 로직 제공.
--	탐색알고리즘은 깊이우선탐색(`SearchOption.depthFirst()`), 너비우선탐색(`SearchOption.breadthFirst()`) 두가지를 제공한다.
+-	탐색알고리즘은 깊이우선탐색(`TreeSearchOption.depthFirst()`), 너비우선탐색(`TreeSearchOption.breadthFirst()`) 제공한다. 또한 현재 노드에서 부모방향(`TreeSearchOption.toParent()`)으로 탐색할수 있다
 -	단일 노드탐색 `Trees.searchFirst(root, A지점)`
 -	다중 노드탐색 `Trees.searchAll(root, 찾고자하는 predicate)`
 

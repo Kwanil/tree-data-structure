@@ -33,8 +33,8 @@ public class TreeCollectorsTest {
         Collector<VOEx, ?, VOEx> toTree = TreeCollectors.<VOEx,Integer>tree()
                 .id(VOEx::getId)
                 .parentId(VOEx::getParentId)
-                .childAppend((vo, list) -> vo.setChildren(list))
                 .root(vo -> vo.getParentId() == 0)
+                .childrenAppend((vo, list) -> vo.setChildren(list))
                 .toTree();
 
         VOEx vo = voList.stream().map(i->new VOEx(i.id,i.parentId)).collect(toTree);
