@@ -1,47 +1,64 @@
 package tree;
 
-import org.junit.Test;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
+import java.util.List;
 
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertThat;
+class TreeNodeTest {
 
-public class TreeNodeTest extends AbstractTreeTest{
-	
-	@Test
-	public void testOnlyRootNode() throws Exception {
-		TreeNode<String> treeNode = new TreeNode<String>("root");
-
-		assertThat(treeNode.get(), is("root"));
-		assertThat(treeNode.isRoot(), is(true));
-		assertThat(treeNode.isLeaf(), is(true));
-		assertThat(treeNode.parent(), is((TreeNode<String>)null));
-	}
-
-    @Test
-    public void testOneRootTwoChildren() throws Exception {
-        TreeNode<String> root = new TreeNode<>("root");
-        TreeNode<String> sub1 = new TreeNode<>(root, "sub1");
-        TreeNode<String> sub2 = new TreeNode<>(root, "sub2");
-
-        assertThat(root.children(), is(Arrays.asList(sub1, sub2)));
-        assertThat(root.childAt(0), is(sub1));
-        assertThat(root.childAt(1), is(sub2));
-        assertThat(root.children().indexOf(sub1), is(0));
-        assertThat(root.children().indexOf(sub2), is(1));
-
+    @Getter
+    @Setter
+    @EqualsAndHashCode
+    @ToString
+    static class Department {
+        private String departmentCode;
+        private String departmentName;
+        private String upperDepartmentCode;
     }
 
     @Test
-    public void test() throws Exception {
+    void treeNode() {
+        TreeNode<Department> departmentChart = departmentChart();
+        System.out.println(departmentChart.isRoot());
 
-        TreeNode<String> root = new TreeNode<>("root");
-        TreeNode<String> sub1 = new TreeNode<>(root, "sub1");
-        TreeNode<String> sub2 = new TreeNode<>(root, "sub2");
+    }
 
-        assertThat(root.children(), is(Arrays.asList(sub1, sub2)));
-        assertThat(root.childAt(0), is(sub1));
-        assertThat(root.childAt(1), is(sub2));
+    private TreeNode<Department> departmentChart() {
+        List<Department> departments = getDepartments();
+        TreeNode<Department> treeNode = departments.stream().collect(TreeCollectors.id(Department::getDepartmentCode).parentId(Department::getUpperDepartmentCode).root(i -> i.getUpperDepartmentCode() == null).toTreeNode());
+        System.out.println(TreeNodes.toString(treeNode));
+        return treeNode;
+    }
+
+    private List<Department> getDepartments() {
+        Department d1 = new Department();
+        d1.setDepartmentCode("CORP");
+        d1.setDepartmentName("Corporation");
+
+        Department d2 = new Department();
+        d2.setDepartmentCode("CENTER");
+        d2.setDepartmentName("Center");
+        d2.setUpperDepartmentCode("CORP");
+
+        Department d3 = new Department();
+        d3.setDepartmentCode("TEAM1");
+        d3.setDepartmentName("Team1");
+        d3.setUpperDepartmentCode("CENTER");
+
+        Department d4 = new Department();
+        d4.setDepartmentCode("TEAM2");
+        d4.setDepartmentName("Team2");
+        d4.setUpperDepartmentCode("CENTER");
+
+        Department d5 = new Department();
+        d5.setDepartmentCode("HR");
+        d5.setDepartmentName("HumanResource");
+        d5.setUpperDepartmentCode("CORP");
+
+        return List.of(d1, d2, d3, d4, d5);
     }
 }

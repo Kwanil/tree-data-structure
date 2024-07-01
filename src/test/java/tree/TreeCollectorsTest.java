@@ -1,128 +1,105 @@
 package tree;
 
-import org.junit.Test;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collector;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-public class TreeCollectorsTest {
+class TreeCollectorsTest {
 
-    List<VO> voList = Arrays.asList(
-            vo(1, 0),
-            vo(2, 1),
-            vo(3, 1),
-            vo(4, 1),
-            vo(5, 2),
-            vo(6, 2),
-            vo(7, 2),
-            vo(8, 3),
-            vo(9, 3),
-            vo(10, 4),
-            vo(11, 4),
-            vo(12, 6)
-    );
-    private VO vo(int id, int parentId) {
-        return VO.of(id, parentId);
+
+    @Test
+    void collector() {
+        List<VO> list = root1();
+        TreeNode<VO> treeNode = list.stream().collect(TreeCollectors.id(VO::getId).parentId(VO::getParentId).toTreeNode());
+
+        assertEquals("root1", treeNode.value().id);
+        assertEquals("root1-child1", treeNode.firstChild().value().id);
+        assertEquals("root1-child2", treeNode.lastChild().value().id);
+        assertEquals("root1-child1_1", treeNode.firstChild().firstChild().value().id);
     }
 
     @Test
-    public void testTreeCollector() throws Exception {
-        Collector<VOEx, ?, VOEx> toTree = TreeCollectors.<VOEx,Integer>tree()
-                .id(VOEx::getId)
-                .parentId(VOEx::getParentId)
-                .root(vo -> vo.getParentId() == 0)
-                .childrenAppend((vo, list) -> vo.setChildren(list))
-                .toTree();
+    void collector1() {
+        List<VO> list = root1();
+        TreeNode<VO> treeNode = list.stream().collect(TreeCollectors.id(VO::getId).parentId(VO::getParentId).root(i -> i.getParentId() == null).toTreeNode());
 
-        VOEx vo = voList.stream().map(i->new VOEx(i.id,i.parentId)).collect(toTree);
-        System.out.println(vo);
-
-        assertEquals(vo.getId(), 1);
-
-        assertEquals(vo.children.size(), 3);
-
-        assertEquals(vo.children.get(0).children.size(), 3);
+        assertEquals("root1", treeNode.value().id);
+        assertEquals("root1-child1", treeNode.firstChild().value().id);
+        assertEquals("root1-child2", treeNode.lastChild().value().id);
+        assertEquals("root1-child1_1", treeNode.firstChild().firstChild().value().id);
     }
 
     @Test
-    public void testTreeNodeCollector() throws Exception {
-        Collector<VO, ?, TreeNode<VO>> toTreeNode = TreeCollectors.<VO, Integer>treeNode()
-                .id(VO::getId)
-                .parentId(VO::getParentId)
-                .root(vo -> vo.getParentId() == 0)
-                .toTree();
+    void collector2() {
+        List<VO> list = new ArrayList<>(root1());
+        list.addAll(root2());
+        List<TreeNode<VO>> treeNodeList = list.stream().collect(TreeCollectors.id(VO::getId).parentId(VO::getParentId).root(i -> i.getParentId() == null).toTreeNodeList());
 
-        TreeNode<VO> treeNode = voList.stream().collect(toTreeNode);
-        System.out.println(treeNode);
+        assertEquals(2, treeNodeList.size());
+        TreeNode<VO> treeNode = treeNodeList.get(0);
+        assertEquals("root1", treeNode.value().id);
+        assertEquals("root1-child1", treeNode.firstChild().value().id);
+        assertEquals("root1-child2", treeNode.lastChild().value().id);
+        assertEquals("root1-child1_1", treeNode.firstChild().firstChild().value().id);
+        TreeNode<VO> treeNode2 = treeNodeList.get(1);
+        assertEquals("root2", treeNode2.value().id);
+        assertEquals("root2-child1", treeNode2.firstChild().value().id);
+        assertEquals("root2-child2", treeNode2.lastChild().value().id);
+        assertEquals("root2-child1_1", treeNode2.firstChild().firstChild().value().id);
+    }
 
-        assertEquals(treeNode.get().id, 1);
+    @Test
+    void collector3() {
+        List<VO> list = new ArrayList<>(root1());
+        list.addAll(root2());
+        TreeNode<VO> root = list.stream().collect(TreeCollectors.id(VO::getId).parentId(VO::getParentId).root(i -> i.parentId == null).toTreeNode());
+        List<TreeNode<VO>> treeNodeList = List.copyOf(root.children());
 
-        assertEquals(treeNode.children().size(), 3);
+        assertEquals(2, treeNodeList.size());
+        TreeNode<VO> treeNode = treeNodeList.get(0);
+        assertEquals("root1", treeNode.value().id);
+        assertEquals("root1-child1", treeNode.firstChild().value().id);
+        assertEquals("root1-child2", treeNode.lastChild().value().id);
+        assertEquals("root1-child1_1", treeNode.firstChild().firstChild().value().id);
+        TreeNode<VO> treeNode2 = treeNodeList.get(1);
+        assertEquals("root2", treeNode2.value().id);
+        assertEquals("root2-child1", treeNode2.firstChild().value().id);
+        assertEquals("root2-child2", treeNode2.lastChild().value().id);
+        assertEquals("root2-child1_1", treeNode2.firstChild().firstChild().value().id);
+    }
 
-        assertEquals(treeNode.children().get(0).children().size(), 3);
+    private List<VO> root1() {
+        VO root1 = VO.of("root1", null);
+        VO child1 = VO.of("root1-child1", "root1");
+        VO child2 = VO.of("root1-child2", "root1");
+        VO child1_1 = VO.of("root1-child1_1", "root1-child1");
+        VO child1_2 = VO.of("root1-child1_2", "root1-child1");
+        return List.of(root1, child1, child2, child1_1, child1_2);
+    }
+
+    private List<VO> root2() {
+        VO root1 = VO.of("root2", null);
+        VO child1 = VO.of("root2-child1", "root2");
+        VO child2 = VO.of("root2-child2", "root2");
+        VO child1_1 = VO.of("root2-child1_1", "root2-child1");
+        VO child1_2 = VO.of("root2-child1_2", "root2-child1");
+        return List.of(root1, child1, child2, child1_1, child1_2);
     }
 
 
+    @Getter
+    @Setter
+    @ToString
+    @RequiredArgsConstructor(staticName = "of")
     static class VO {
-        private int id;
-        private int parentId;
-
-        public static VO of(int id, int parentId) {
-            return new VO(id, parentId);
-        }
-
-        private VO(int id, int parentId) {
-            this.id = id;
-            this.parentId = parentId;
-        }
-
-        public int getId() {
-            return id;
-        }
-
-        public int getParentId() {
-            return parentId;
-        }
-
-
-        @Override
-        public String toString() {
-            return "VO{" +
-                    "id=" + id +
-                    ", parentId=" + parentId +
-                    '}';
-        }
-    }
-
-    static class VOEx extends VO {
-        private List<VOEx> children;
-
-        public static VOEx of(int id, int parentId) {
-            return new VOEx(id, parentId);
-        }
-
-        private VOEx(int id, int parentId) {
-            super(id, parentId);
-        }
-
-        public List<VOEx> getChildren() {
-            return children;
-        }
-
-        public void setChildren(List<VOEx> children) {
-            this.children = children;
-        }
-
-        @Override
-        public String toString() {
-            return "VO{" +
-                    "id=" + getId() +
-                    ", parentId=" + getParentId() +
-                    ", children=" + children +
-                    '}';
-        }
+        private final String id;
+        private final String parentId;
     }
 }

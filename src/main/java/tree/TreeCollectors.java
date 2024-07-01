@@ -1,182 +1,167 @@
 package tree;
 
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.function.BiConsumer;
+import lombok.ToString;
+
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
-public final class TreeCollectors {
-    private TreeCollectors(){
-        throw new UnsupportedOperationException("initialize error");
+/**
+ * TreeNode로 {@link java.util.stream.Stream}에서 사용하기 위한 {@link Collector}를 제공 클래스이다.
+ *
+ * <pre>
+ *     {@code
+ *         List<Department> departments = findAllDepartments();
+ *         TreeNode<Department> treeNode = departments.stream().collect(
+ *              TreeCollectors
+ *                  .id(Department::getDepartmentId)
+ *                  .parentId(Department::getParentDepartmentId)
+ *                  .root(i -> i.getParentDepartmentId() == null)
+ *                  .toTreeNode()
+*           );
+ *     }
+ * </pre>
+ *
+ * {@link Builder#root(Predicate)} {@link Builder#rootPredicate} 로,
+ * root 노드가 여러 개가 나오는 경우에 {@link Builder#toTreeNodeList()}는 여러 {@code TreeNode}를 구성하여 {@code List<TreeNode<T>>}로 제공하고,
+ * {@link Builder#toTreeNode()}의 경우는 한개의 최 상위의 Root노드를 임의로 하나 더 만들어 하위 노드로 등록하여 {@code TreeNode<T>}로 제공한다.
+ *
+ */
+public class TreeCollectors {
+
+    /**
+     * Id를 가리키는 Function
+     * @param id {@link TreeNode<T>}애서 T에서 id 가리키는 function
+     * @return {@link Builder}
+     * @param <T> TreeNode에 등록할 타입
+     * @param <PK> id의 타입
+     */
+    public static <T,PK> Builder<T,PK> id(Function<? super T, ? extends PK> id) {
+        return new Builder<>(id);
     }
 
-    public static <T,PK> TreeCollectorBuilder.IdFunction<T,PK> tree() {
-        return id->parentId->root->childAppender->new TreeCollectorBuilder(id,parentId,root,childAppender);
-    }
-
-    public static <T,PK> TreeNodeCollectorBuilder.IdFunction<T,PK> treeNode() {
-        return id->parentId->root->new TreeNodeCollectorBuilder(id,parentId,root);
-    }
-
-    public static class TreeNodeCollectorBuilder<T, PK> {
-        private final Predicate<? super T> rootPredicate;
+    public static class Builder<T, PK> {
         private final Function<? super T,? extends PK> id;
-        private final Function<? super T,? extends PK> parentId;
+        private Function<? super T,? extends PK> parentId;
 
-        private TreeNodeCollectorBuilder(
-                Function<? super T, ? extends PK> id,
-                Function<? super T, ? extends PK> parentId,
-                Predicate<? super T> rootPredicate) {
-            this.rootPredicate = Objects.requireNonNull(rootPredicate);
+        private final Predicate<T> defaultRootPredicate = t -> parentId.apply(t) == null;
+        private Predicate<? super T> rootPredicate = defaultRootPredicate;
+
+        public Builder(Function<? super T, ? extends PK> id) {
             this.id = Objects.requireNonNull(id);
+        }
+
+        /**
+         * parentId를 가리키는 Function
+         *
+         * @param parentId {@link TreeNode<T>}애서 T에서 parentId 가리키는 function
+         * @return {@link Builder}
+         */
+        public Builder<T, PK> parentId(Function<? super T, ? extends PK> parentId) {
             this.parentId = Objects.requireNonNull(parentId);
+            return this;
         }
 
-        public interface RootPredicate<T,PK> {
-            TreeNodeCollectorBuilder<T,PK> root(Predicate<? super T> rootPredicate);
+        /**
+         * Root 노드의 조건, 등록하지 않은 경우엔 parentId가 null인 것을 루트노드 조건으로 한다.
+         *
+         * @param rootPredicate 루트 노드의 조건
+         * @return {@link Builder}
+         */
+        public Builder<T, PK> root(Predicate<? super T> rootPredicate) {
+            this.rootPredicate = Objects.requireNonNull(rootPredicate);
+            return this;
         }
 
-        public interface IdFunction<T,PK> {
-            ParentIdFunction<T,PK> id(Function<? super T,? extends PK> id);
+        private void nullCheck() {
+            Objects.requireNonNull(id);
+            Objects.requireNonNull(parentId);
+            Objects.requireNonNull(rootPredicate);
         }
 
-        public interface ParentIdFunction<T,PK> {
-            RootPredicate<T,PK> parentId(Function<? super T,? extends PK> parentId);
+        public Collector<T, ?, TreeNode<T>> toTreeNode() {
+            nullCheck();
+            return Collector.of(() -> new TreeNodeAccumulator(), TreeNodeAccumulator::add, (left, right) -> {
+                left.merge(right);
+                return left;
+            }, TreeNodeAccumulator::toTreeNode);
         }
 
-        public Collector<T,?,TreeNode<T>> toTree() {
-            return Collectors.collectingAndThen(
-                    Collectors.partitioningBy(rootPredicate, Collectors.groupingBy(parentId)),
-                    new ResultFunction());
+        public Collector<T, ?, List<TreeNode<T>>> toTreeNodeList() {
+            nullCheck();
+            return Collector.of(() -> new TreeNodeAccumulator(), TreeNodeAccumulator::add, (left, right) -> {
+                left.merge(right);
+                return left;
+            }, TreeNodeAccumulator::toTreeNodeList);
         }
 
-        private class ResultFunction implements Function<Map<Boolean, Map<PK, List<T>>>, TreeNode<T>>{
+        /**
+         * {@link Collector}에서 Type Parameter A인 {@link Collector#accumulator()} 에 해당하는 클래스.
+         * reduce 작업에서 쓰이는 변경 가능한 (mutable accumulation). 구현 세부 정보로 숨겼습니다.
+         */
+        @ToString
+        private class TreeNodeAccumulator {
+            private final Set<T> roots = new LinkedHashSet<>();
+            private final Map<PK, List<T>> parentsIdMap = new HashMap<>();
 
-            @Override
-            public TreeNode<T> apply(Map<Boolean, Map<PK, List<T>>> map) {
-                T root = root(map);
-                Map<PK, List<T>> parentIdMap = parentIdMap(map);
-                return new ChildrenAppenderFunction(parentIdMap).apply(root);
+            public void add(T node) {
+                if(rootPredicate.test(node)) {
+                    roots.add(node);
+                } else {
+                    PK p = parentId.apply(node);
+                    parentsIdMap.computeIfAbsent(p, k -> new ArrayList<>()).add(node);
+                }
             }
 
-            private T root(Map<Boolean, Map<PK, List<T>>> map) throws NoSuchElementException {
-                Map.Entry<PK, List<T>> rootMap = map.get(true).entrySet().stream().findFirst().get();
-                return rootMap.getValue().stream().findFirst().get();
+            public void merge(TreeNodeAccumulator nodes) {
+                this.roots.addAll(nodes.roots);
+                nodes.parentsIdMap.forEach((key, value) -> {
+                    List<T> result = this.parentsIdMap.get(key) == null ? new ArrayList<>(): new ArrayList<>(this.parentsIdMap.get(key));
+                    result.addAll(value);
+                    this.parentsIdMap.put(key, result);
+                });
             }
 
-            private Map<PK, List<T>> parentIdMap(Map<Boolean, Map<PK, List<T>>> map) {
-                return map.get(false);
+
+            private List<TreeNode<T>> toTreeNodeList() {
+                List<TreeNode<T>> result = new ArrayList<>();
+                for (T root : roots) {
+                    MutableTreeNode<T> rootNode = MutableTreeNode.create(root);
+                    addChild(rootNode);
+                    result.add(rootNode);
+                }
+                return result;
             }
-        }
 
-        private class ChildrenAppenderFunction implements Function<T,TreeNode<T>> {
-            private final Map<PK, List<T>> parentIdMap;
-
-            private ChildrenAppenderFunction(Map<PK, List<T>> parentIdMap) {
-                this.parentIdMap = parentIdMap;
-            }
-
-            @Override
-            public TreeNode<T> apply(T t) {
-                TreeNode<T> root = new TreeNode<>(t);
-                addChild(root);
+            private TreeNode<T> toTreeNode() {
+                List<TreeNode<T>> nodes = toTreeNodeList();
+                if(nodes.isEmpty()) {
+                    return TreeNode.empty();
+                }
+                if(nodes.size() == 1) {
+                    return nodes.get(0);
+                }
+                MutableTreeNode<T> root = MutableTreeNode.empty();
+                for (TreeNode<T> node : nodes) {
+                    root.add(node);
+                }
                 return root;
             }
 
-            private void addChild(TreeNode<T> root) {
-                List<T> children = parentIdMap.remove(id.apply(root.get()));
+            private void addChild(MutableTreeNode<T> root) {
+                PK pk = id.apply(root.value());
+                List<T> children = parentsIdMap.remove(pk);
                 if (children != null) {
                     for(T child : children) {
-                        this.addChild(new TreeNode<>(root, child));
+                        MutableTreeNode<T> node = MutableTreeNode.create(child);
+                        root.add(node);
+                        addChild(node);
                     }
                 }
             }
         }
     }
 
-    public static class TreeCollectorBuilder<T, PK> {
-        private final Predicate<? super T> rootPredicate;
-        private final Function<? super T,? extends PK> id;
-        private final Function<? super T,? extends PK> parentId;
-        private final BiConsumer<? super T, List<? super T>> childAppender;
 
-        private TreeCollectorBuilder(
-                Function<? super T, ? extends PK> id,
-                Function<? super T, ? extends PK> parentId,
-                Predicate<? super T> rootPredicate,
-                BiConsumer<? super T, List<? super T>> childAppender) {
-            this.rootPredicate = Objects.requireNonNull(rootPredicate);
-            this.id = Objects.requireNonNull(id);
-            this.childAppender = Objects.requireNonNull(childAppender);
-            this.parentId = Objects.requireNonNull(parentId);
-        }
-
-        public interface RootPredicate<T,PK> {
-            ChildrenAppender<T,PK> root(Predicate<? super T> rootPredicate);
-        }
-
-        public interface IdFunction<T,PK> {
-            ParentIdFunction<T,PK> id(Function<? super T,? extends PK> id);
-        }
-
-        public interface ParentIdFunction<T,PK> {
-            RootPredicate<T,PK> parentId(Function<? super T,? extends PK> parentId);
-        }
-
-        public interface ChildrenAppender<T,PK> {
-            TreeCollectorBuilder<T,PK> childrenAppend(BiConsumer<? super T, List<T>> childAppender);
-        }
-
-        public Collector<T,?,T> toTree() {
-            return Collectors.collectingAndThen(
-                    Collectors.partitioningBy(rootPredicate, Collectors.groupingBy(parentId)),
-                    new ResultFunction());
-        }
-
-        private class ResultFunction implements Function<Map<Boolean, Map<PK, List<T>>>, T>{
-
-            @Override
-            public T apply(Map<Boolean, Map<PK, List<T>>> map) {
-                T root = root(map);
-                Map<PK, List<T>> parentIdMap = parentIdMap(map);
-                return new ChildrenAppenderFunction(parentIdMap).apply(root);
-            }
-
-            private T root(Map<Boolean, Map<PK, List<T>>> map) throws NoSuchElementException {
-                Map.Entry<PK, List<T>> rootMap = map.get(true).entrySet().stream().findFirst().get();
-                return rootMap.getValue().stream().findFirst().get();
-            }
-
-            private Map<PK, List<T>> parentIdMap(Map<Boolean, Map<PK, List<T>>> map) {
-                return map.get(false);
-            }
-        }
-
-        private class ChildrenAppenderFunction implements Function<T,T> {
-            private final Map<PK, List<T>> parentIdMap;
-
-            private ChildrenAppenderFunction(Map<PK, List<T>> parentIdMap) {
-                this.parentIdMap = parentIdMap;
-            }
-
-            @Override
-            public T apply(T t) {
-                addChild(t);
-                return t;
-            }
-
-            private void addChild(T root) {
-                List<T> children = parentIdMap.remove(id.apply(root));
-                if (children != null) {
-                    childAppender.accept(root, children);
-                    children.forEach(this::addChild);
-                }
-            }
-        }
-    }
 }
